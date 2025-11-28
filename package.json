@@ -1,0 +1,35 @@
+{
+  "name": "haex-marketplace",
+  "version": "0.1.0",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --hot index.ts",
+    "start": "bun run scripts/migrate.ts && bun run index.ts",
+    "start:no-migrate": "bun run index.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "bun run scripts/migrate.ts",
+    "db:push": "drizzle-kit push && bun run db:rls",
+    "db:rls": "bun run scripts/apply-rls.ts",
+    "db:seed": "bun run scripts/seed-categories.ts",
+    "db:studio": "drizzle-kit studio"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "drizzle-kit": "^0.31.6",
+    "tsx": "^4.20.6"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.7.4",
+    "@supabase/supabase-js": "^2.79.0",
+    "drizzle-orm": "^0.44.7",
+    "hono": "^4.10.4",
+    "postgres": "^3.4.7",
+    "semver": "^7.7.2",
+    "zod": "^4.1.12"
+  }
+}
