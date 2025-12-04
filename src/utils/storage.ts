@@ -11,26 +11,36 @@ if (!supabaseUrl || !supabaseSecretKey) {
 const supabaseAdmin = createClient(supabaseUrl, supabaseSecretKey);
 
 const BUCKET_NAME = "extensions";
+const IMAGES_BUCKET_NAME = "marketplace-images";
 
-const ALLOWED_MIME_TYPES = [
+const EXTENSION_MIME_TYPES = [
   "application/x-haextension",
   "application/octet-stream",
   "application/zip",
 ];
 
+const IMAGE_MIME_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+  "image/svg+xml",
+];
+
 /**
- * Initialize storage bucket (creates if not exists, updates if exists)
+ * Initialize storage buckets (creates if not exists, updates if exists)
  */
 export async function initStorageAsync(): Promise<void> {
   const { data: buckets } = await supabaseAdmin.storage.listBuckets();
 
-  const bucketExists = buckets?.some(b => b.name === BUCKET_NAME);
+  // Extensions bucket
+  const extensionBucketExists = buckets?.some(b => b.name === BUCKET_NAME);
 
-  if (!bucketExists) {
+  if (!extensionBucketExists) {
     const { error } = await supabaseAdmin.storage.createBucket(BUCKET_NAME, {
       public: true,
       fileSizeLimit: 50 * 1024 * 1024, // 50MB max
-      allowedMimeTypes: ALLOWED_MIME_TYPES,
+      allowedMimeTypes: EXTENSION_MIME_TYPES,
     });
 
     if (error) {
@@ -39,15 +49,41 @@ export async function initStorageAsync(): Promise<void> {
       console.log(`Created storage bucket: ${BUCKET_NAME}`);
     }
   } else {
-    // Update existing bucket to ensure correct settings
     const { error } = await supabaseAdmin.storage.updateBucket(BUCKET_NAME, {
       public: true,
       fileSizeLimit: 50 * 1024 * 1024,
-      allowedMimeTypes: ALLOWED_MIME_TYPES,
+      allowedMimeTypes: EXTENSION_MIME_TYPES,
     });
 
     if (error) {
       console.error(`Failed to update storage bucket: ${error.message}`);
+    }
+  }
+
+  // Marketplace images bucket
+  const imagesBucketExists = buckets?.some(b => b.name === IMAGES_BUCKET_NAME);
+
+  if (!imagesBucketExists) {
+    const { error } = await supabaseAdmin.storage.createBucket(IMAGES_BUCKET_NAME, {
+      public: true,
+      fileSizeLimit: 5 * 1024 * 1024, // 5MB max for images
+      allowedMimeTypes: IMAGE_MIME_TYPES,
+    });
+
+    if (error) {
+      console.error(`Failed to create images bucket: ${error.message}`);
+    } else {
+      console.log(`Created storage bucket: ${IMAGES_BUCKET_NAME}`);
+    }
+  } else {
+    const { error } = await supabaseAdmin.storage.updateBucket(IMAGES_BUCKET_NAME, {
+      public: true,
+      fileSizeLimit: 5 * 1024 * 1024,
+      allowedMimeTypes: IMAGE_MIME_TYPES,
+    });
+
+    if (error) {
+      console.error(`Failed to update images bucket: ${error.message}`);
     }
   }
 }
@@ -134,6 +170,37 @@ export async function uploadScreenshotAsync(
   const {
     data: { publicUrl },
   } = supabaseAdmin.storage.from(BUCKET_NAME).getPublicUrl(path);
+
+  return { url: publicUrl, error: null };
+}
+
+/**
+ * Upload marketplace image (for markdown descriptions)
+ */
+export async function uploadMarketplaceImageAsync(
+  publisherSlug: string,
+  extensionSlug: string,
+  file: File | Blob,
+  filename: string
+): Promise<{ url: string; error: Error | null }> {
+  const ext = filename.split(".").pop() || "png";
+  const uniqueId = Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
+  const path = `${publisherSlug}/${extensionSlug}/${uniqueId}.${ext}`;
+
+  const { error } = await supabaseAdmin.storage
+    .from(IMAGES_BUCKET_NAME)
+    .upload(path, file, {
+      contentType: file.type || "image/png",
+      upsert: false,
+    });
+
+  if (error) {
+    return { url: "", error: new Error(error.message) };
+  }
+
+  const {
+    data: { publicUrl },
+  } = supabaseAdmin.storage.from(IMAGES_BUCKET_NAME).getPublicUrl(path);
 
   return { url: publicUrl, error: null };
 }

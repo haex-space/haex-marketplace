@@ -16,6 +16,7 @@ import {
   uploadExtensionBundleAsync,
   uploadExtensionIconAsync,
   uploadScreenshotAsync,
+  uploadMarketplaceImageAsync,
 } from "../utils/storage.ts";
 import * as semver from "semver";
 import * as crypto from "crypto";
@@ -688,5 +689,63 @@ app.post(
     return c.json({ success: true, status: "published" });
   }
 );
+
+/**
+ * POST /publish/extensions/:slug/images
+ * Upload an image for use in markdown description
+ */
+app.post("/extensions/:slug/images", requireAuthAsync, async (c) => {
+  const user = c.get("user");
+  const slug = c.req.param("slug");
+
+  const publisher = await db.query.publishers.findFirst({
+    where: eq(publishers.userId, user.id),
+  });
+
+  if (!publisher) {
+    return c.json({ error: "No publisher profile found" }, 404);
+  }
+
+  const extension = await db.query.extensions.findFirst({
+    where: and(
+      eq(extensions.slug, slug),
+      eq(extensions.publisherId, publisher.id)
+    ),
+  });
+
+  if (!extension) {
+    return c.json({ error: "Extension not found" }, 404);
+  }
+
+  const formData = await c.req.formData();
+  const image = formData.get("image") as File | null;
+
+  if (!image) {
+    return c.json({ error: "Image file is required" }, 400);
+  }
+
+  // Validate file type
+  if (!image.type.startsWith("image/")) {
+    return c.json({ error: "File must be an image" }, 400);
+  }
+
+  // Validate file size (max 5MB)
+  if (image.size > 5 * 1024 * 1024) {
+    return c.json({ error: "Image must be less than 5MB" }, 400);
+  }
+
+  const { url, error } = await uploadMarketplaceImageAsync(
+    publisher.slug,
+    extension.slug,
+    image,
+    image.name
+  );
+
+  if (error) {
+    return c.json({ error: error.message }, 500);
+  }
+
+  return c.json({ url }, 201);
+});
 
 export default app;
