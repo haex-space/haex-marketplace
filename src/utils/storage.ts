@@ -12,8 +12,14 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseSecretKey);
 
 const BUCKET_NAME = "extensions";
 
+const ALLOWED_MIME_TYPES = [
+  "application/x-haextension",
+  "application/octet-stream",
+  "application/zip",
+];
+
 /**
- * Initialize storage bucket (creates if not exists)
+ * Initialize storage bucket (creates if not exists, updates if exists)
  */
 export async function initStorageAsync(): Promise<void> {
   const { data: buckets } = await supabaseAdmin.storage.listBuckets();
@@ -24,17 +30,24 @@ export async function initStorageAsync(): Promise<void> {
     const { error } = await supabaseAdmin.storage.createBucket(BUCKET_NAME, {
       public: true,
       fileSizeLimit: 50 * 1024 * 1024, // 50MB max
-      allowedMimeTypes: [
-        "application/x-haextension",
-        "application/octet-stream",
-        "application/zip",
-      ],
+      allowedMimeTypes: ALLOWED_MIME_TYPES,
     });
 
     if (error) {
       console.error(`Failed to create storage bucket: ${error.message}`);
     } else {
       console.log(`Created storage bucket: ${BUCKET_NAME}`);
+    }
+  } else {
+    // Update existing bucket to ensure correct settings
+    const { error } = await supabaseAdmin.storage.updateBucket(BUCKET_NAME, {
+      public: true,
+      fileSizeLimit: 50 * 1024 * 1024,
+      allowedMimeTypes: ALLOWED_MIME_TYPES,
+    });
+
+    if (error) {
+      console.error(`Failed to update storage bucket: ${error.message}`);
     }
   }
 }
