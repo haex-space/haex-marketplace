@@ -24,7 +24,11 @@ export async function initStorageAsync(): Promise<void> {
     const { error } = await supabaseAdmin.storage.createBucket(BUCKET_NAME, {
       public: true,
       fileSizeLimit: 50 * 1024 * 1024, // 50MB max
-      allowedMimeTypes: ["application/x-haextension"],
+      allowedMimeTypes: [
+        "application/x-haextension",
+        "application/octet-stream",
+        "application/zip",
+      ],
     });
 
     if (error) {
