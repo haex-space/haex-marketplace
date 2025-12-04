@@ -24,8 +24,7 @@ const app = new Hono<{ Variables: AuthVariables }>();
 
 // Schema for creating an extension
 const createExtensionSchema = z.object({
-  extensionId: z.string().min(1).max(100),
-  publicKey: z.string().min(1),
+  publicKey: z.string().min(1, "Public key is required"),
   name: z.string().min(2).max(100),
   slug: z
     .string()
@@ -33,14 +32,13 @@ const createExtensionSchema = z.object({
     .max(50)
     .regex(/^[a-z0-9-]+$/, "Slug must be lowercase alphanumeric with hyphens"),
   shortDescription: z.string().min(10).max(150),
-  description: z.string().min(50).max(10000),
+  description: z.string().max(10000).optional(),
   categorySlug: z.string().optional(),
   tags: z.array(z.string().max(30)).max(10).optional(),
 });
 
 // Schema for updating an extension
 const updateExtensionSchema = createExtensionSchema.partial().omit({
-  extensionId: true,
   publicKey: true,
   slug: true,
 });
@@ -132,17 +130,20 @@ app.post(
       categoryId = category?.id || null;
     }
 
+    // Generate extensionId from publisher slug and extension slug
+    const extensionId = `${publisher.slug}/${data.slug}`;
+
     const [extension] = await db
       .insert(extensions)
       .values({
         publisherId: publisher.id,
         categoryId,
-        extensionId: data.extensionId,
+        extensionId,
         publicKey: data.publicKey,
         name: data.name,
         slug: data.slug,
         shortDescription: data.shortDescription,
-        description: data.description,
+        description: data.description || "",
         tags: data.tags,
         status: "draft",
       })
