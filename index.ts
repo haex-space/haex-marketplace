@@ -7,8 +7,12 @@ import reviewsRoutes from "./src/routes/reviews.ts";
 import publishersRoutes from "./src/routes/publishers.ts";
 import categoriesRoutes from "./src/routes/categories.ts";
 import publishRoutes from "./src/routes/publish.ts";
+import { initStorageAsync } from "./src/utils/storage.ts";
 
 const app = new Hono();
+
+// Initialize storage bucket on startup
+initStorageAsync().catch(console.error);
 
 // Middleware
 app.use("*", logger());

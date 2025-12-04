@@ -13,6 +13,29 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseSecretKey);
 const BUCKET_NAME = "extensions";
 
 /**
+ * Initialize storage bucket (creates if not exists)
+ */
+export async function initStorageAsync(): Promise<void> {
+  const { data: buckets } = await supabaseAdmin.storage.listBuckets();
+
+  const bucketExists = buckets?.some(b => b.name === BUCKET_NAME);
+
+  if (!bucketExists) {
+    const { error } = await supabaseAdmin.storage.createBucket(BUCKET_NAME, {
+      public: true,
+      fileSizeLimit: 50 * 1024 * 1024, // 50MB max
+      allowedMimeTypes: ["application/x-haextension"],
+    });
+
+    if (error) {
+      console.error(`Failed to create storage bucket: ${error.message}`);
+    } else {
+      console.log(`Created storage bucket: ${BUCKET_NAME}`);
+    }
+  }
+}
+
+/**
  * Upload extension bundle to storage
  */
 export async function uploadExtensionBundleAsync(
@@ -21,12 +44,12 @@ export async function uploadExtensionBundleAsync(
   version: string,
   file: File | Blob
 ): Promise<{ path: string; error: Error | null }> {
-  const path = `${publisherSlug}/${extensionSlug}/${version}.haextension`;
+  const path = `${publisherSlug}/${extensionSlug}/${version}.xt`;
 
   const { error } = await supabaseAdmin.storage
     .from(BUCKET_NAME)
     .upload(path, file, {
-      contentType: "application/octet-stream",
+      contentType: "application/x-haextension",
       upsert: false, // Don't overwrite existing versions
     });
 

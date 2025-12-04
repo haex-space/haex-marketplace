@@ -378,6 +378,129 @@ app.delete("/extensions/:slug/screenshots/:id", requireAuthAsync, async (c) => {
 });
 
 /**
+ * POST /publish/extensions/:slug/bundle
+ * Simple bundle upload (extracts version from form data)
+ */
+app.post("/extensions/:slug/bundle", requireAuthAsync, async (c) => {
+  const user = c.get("user");
+  const slug = c.req.param("slug");
+
+  const publisher = await db.query.publishers.findFirst({
+    where: eq(publishers.userId, user.id),
+  });
+
+  if (!publisher) {
+    return c.json({ error: "No publisher profile found" }, 404);
+  }
+
+  const extension = await db.query.extensions.findFirst({
+    where: and(
+      eq(extensions.slug, slug),
+      eq(extensions.publisherId, publisher.id)
+    ),
+  });
+
+  if (!extension) {
+    return c.json({ error: "Extension not found" }, 404);
+  }
+
+  const formData = await c.req.formData();
+  const bundle = formData.get("bundle") as File | null;
+  const version = formData.get("version") as string | null;
+  const manifestJson = formData.get("manifest") as string | null;
+
+  if (!bundle) {
+    return c.json({ error: "Bundle file is required" }, 400);
+  }
+
+  if (!version || !semver.valid(version)) {
+    return c.json({ error: "Valid semver version is required" }, 400);
+  }
+
+  let manifest: Record<string, unknown> = {};
+  if (manifestJson) {
+    try {
+      manifest = JSON.parse(manifestJson);
+    } catch {
+      return c.json({ error: "Invalid manifest JSON" }, 400);
+    }
+  }
+
+  // Check if version already exists
+  const existingVersion = await db.query.extensionVersions.findFirst({
+    where: and(
+      eq(extensionVersions.extensionId, extension.id),
+      eq(extensionVersions.version, version)
+    ),
+  });
+
+  if (existingVersion) {
+    return c.json({ error: "Version already exists" }, 409);
+  }
+
+  // Check version is greater than latest
+  const latestVersion = await db.query.extensionVersions.findFirst({
+    where: eq(extensionVersions.extensionId, extension.id),
+    orderBy: [desc(extensionVersions.createdAt)],
+  });
+
+  if (latestVersion && !semver.gt(version, latestVersion.version)) {
+    return c.json(
+      { error: `Version must be greater than ${latestVersion.version}` },
+      400
+    );
+  }
+
+  // Calculate bundle hash
+  const arrayBuffer = await bundle.arrayBuffer();
+  const hash = crypto
+    .createHash("sha256")
+    .update(Buffer.from(arrayBuffer))
+    .digest("hex");
+
+  // Upload bundle
+  const { path, error } = await uploadExtensionBundleAsync(
+    publisher.slug,
+    extension.slug,
+    version,
+    new Blob([arrayBuffer])
+  );
+
+  if (error) {
+    return c.json({ error: error.message }, 500);
+  }
+
+  // Create version record
+  const [versionRecord] = await db
+    .insert(extensionVersions)
+    .values({
+      extensionId: extension.id,
+      version,
+      bundlePath: path,
+      bundleSize: bundle.size,
+      bundleHash: hash,
+      manifest,
+      status: "published",
+      publishedAt: new Date(),
+    })
+    .returning();
+
+  // Auto-publish extension if still in draft
+  if (extension.status === "draft") {
+    await db
+      .update(extensions)
+      .set({
+        status: "published",
+        publishedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(extensions.id, extension.id));
+  }
+
+  return c.json({ version: versionRecord }, 201);
+});
+
+/**
  * POST /publish/extensions/:slug/versions
  * Upload a new version
  */
