@@ -24,7 +24,6 @@ Thumbs.db
 *.log
 logs/
 
-# Drizzle
-drizzle/migrations/meta/
+# Claude
 CLAUDE.md
 .claude/
