@@ -48,19 +48,39 @@ app.get("/", async (c) => {
     },
   });
 
-  const [{ count }] = await db
+  const countResult = await db
     .select({ count: sql<number>`count(*)` })
     .from(publishers);
+  const total = Number(countResult[0]?.count ?? 0);
 
   return c.json({
     publishers: results,
     pagination: {
       page,
       limit,
-      total: Number(count),
-      totalPages: Math.ceil(Number(count) / limit),
+      total,
+      totalPages: Math.ceil(total / limit),
     },
   });
+});
+
+/**
+ * GET /publishers/me
+ * Get current user's publisher profile
+ * NOTE: This route MUST be defined before /:slug to avoid being caught by the wildcard
+ */
+app.get("/me", requireAuthAsync, async (c) => {
+  const user = c.get("user");
+
+  const publisher = await db.query.publishers.findFirst({
+    where: eq(publishers.userId, user.id),
+  });
+
+  if (!publisher) {
+    return c.json({ error: "No publisher profile found" }, 404);
+  }
+
+  return c.json({ publisher });
 });
 
 /**
@@ -113,24 +133,6 @@ app.get("/:slug", async (c) => {
     ...publisher,
     extensions: publisherExtensions,
   });
-});
-
-/**
- * GET /publishers/me
- * Get current user's publisher profile
- */
-app.get("/me", requireAuthAsync, async (c) => {
-  const user = c.get("user");
-
-  const publisher = await db.query.publishers.findFirst({
-    where: eq(publishers.userId, user.id),
-  });
-
-  if (!publisher) {
-    return c.json({ error: "No publisher profile found" }, 404);
-  }
-
-  return c.json({ publisher });
 });
 
 /**
