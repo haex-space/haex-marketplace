@@ -15,6 +15,13 @@
       "when": 1764896139637,
       "tag": "0001_calm_masked_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1764897363922,
+      "tag": "0002_bent_bloodstrike",
+      "breakpoints": true
     }
   ]
 }

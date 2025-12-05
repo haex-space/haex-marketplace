@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db, categories, extensions } from "../db/index.ts";
-import { eq, asc, and, count } from "drizzle-orm";
+import { eq, asc, count } from "drizzle-orm";
 
 const app = new Hono();
 
@@ -20,13 +20,7 @@ app.get("/", async (c) => {
       extensionCount: count(extensions.id),
     })
     .from(categories)
-    .leftJoin(
-      extensions,
-      and(
-        eq(extensions.categoryId, categories.id),
-        eq(extensions.status, "published")
-      )
-    )
+    .leftJoin(extensions, eq(extensions.categoryId, categories.id))
     .groupBy(categories.id)
     .orderBy(asc(categories.sortOrder), asc(categories.name));
 

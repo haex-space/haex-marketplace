@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { db, extensions, extensionVersions, publishers, categories } from "../db/index.ts";
-import { eq, desc, sql, and, or, ilike, inArray } from "drizzle-orm";
+import { eq, desc, sql, and, or, ilike } from "drizzle-orm";
 import { optionalAuthAsync } from "../middleware/auth.ts";
 import { getDownloadUrlAsync } from "../utils/storage.ts";
 
@@ -28,7 +28,7 @@ app.get("/", zValidator("query", listQuerySchema), async (c) => {
   const offset = (page - 1) * limit;
 
   // Build where conditions
-  const conditions = [eq(extensions.status, "published")];
+  const conditions = [];
 
   if (category) {
     const cat = await db.query.categories.findFirst({
@@ -139,7 +139,7 @@ app.get("/:slug", optionalAuthAsync, async (c) => {
   const slug = c.req.param("slug");
 
   const extension = await db.query.extensions.findFirst({
-    where: and(eq(extensions.slug, slug), eq(extensions.status, "published")),
+    where: eq(extensions.slug, slug),
     with: {
       publisher: true,
       category: true,
@@ -147,7 +147,6 @@ app.get("/:slug", optionalAuthAsync, async (c) => {
         orderBy: (screenshots, { asc }) => [asc(screenshots.sortOrder)],
       },
       versions: {
-        where: eq(extensionVersions.status, "published"),
         orderBy: (versions, { desc }) => [desc(versions.publishedAt)],
         limit: 10,
       },
@@ -184,7 +183,7 @@ app.get("/:slug/versions", async (c) => {
   const slug = c.req.param("slug");
 
   const extension = await db.query.extensions.findFirst({
-    where: and(eq(extensions.slug, slug), eq(extensions.status, "published")),
+    where: eq(extensions.slug, slug),
   });
 
   if (!extension) {
@@ -192,10 +191,7 @@ app.get("/:slug/versions", async (c) => {
   }
 
   const versions = await db.query.extensionVersions.findMany({
-    where: and(
-      eq(extensionVersions.extensionId, extension.id),
-      eq(extensionVersions.status, "published")
-    ),
+    where: eq(extensionVersions.extensionId, extension.id),
     orderBy: (versions, { desc }) => [desc(versions.publishedAt)],
     columns: {
       id: true,
@@ -222,7 +218,7 @@ app.get("/:slug/download", optionalAuthAsync, async (c) => {
   const requestedVersion = c.req.query("version");
 
   const extension = await db.query.extensions.findFirst({
-    where: and(eq(extensions.slug, slug), eq(extensions.status, "published")),
+    where: eq(extensions.slug, slug),
   });
 
   if (!extension) {
@@ -235,16 +231,12 @@ app.get("/:slug/download", optionalAuthAsync, async (c) => {
     version = await db.query.extensionVersions.findFirst({
       where: and(
         eq(extensionVersions.extensionId, extension.id),
-        eq(extensionVersions.version, requestedVersion),
-        eq(extensionVersions.status, "published")
+        eq(extensionVersions.version, requestedVersion)
       ),
     });
   } else {
     version = await db.query.extensionVersions.findFirst({
-      where: and(
-        eq(extensionVersions.extensionId, extension.id),
-        eq(extensionVersions.status, "published")
-      ),
+      where: eq(extensionVersions.extensionId, extension.id),
       orderBy: (versions, { desc }) => [desc(versions.publishedAt)],
     });
   }

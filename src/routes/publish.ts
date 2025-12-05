@@ -152,7 +152,6 @@ app.post(
         shortDescription: data.shortDescription,
         description: data.description || "",
         tags: data.tags,
-        status: "draft",
       })
       .returning();
 
@@ -487,7 +486,6 @@ app.post("/extensions/:slug/bundle", requireAuthAsync, async (c) => {
       bundleSize: bundle.size,
       bundleHash: hash,
       manifest,
-      status: "published",
       publishedAt: new Date(),
     })
     .returning();
@@ -616,89 +614,11 @@ app.post(
         minAppVersion: metadata.minAppVersion,
         maxAppVersion: metadata.maxAppVersion,
         permissions: metadata.permissions,
-        status: "draft",
+        publishedAt: new Date(),
       })
       .returning();
 
     return c.json({ version }, 201);
-  }
-);
-
-/**
- * POST /publish/extensions/:slug/versions/:version/publish
- * Submit version for review (or auto-publish if enabled)
- */
-app.post(
-  "/extensions/:slug/versions/:version/publish",
-  requireAuthAsync,
-  async (c) => {
-    const user = c.get("user");
-    const slug = c.req.param("slug");
-    const versionParam = c.req.param("version");
-
-    const publisher = await db.query.publishers.findFirst({
-      where: eq(publishers.userId, user.id),
-    });
-
-    if (!publisher) {
-      return c.json({ error: "No publisher profile found" }, 404);
-    }
-
-    const extension = await db.query.extensions.findFirst({
-      where: and(
-        eq(extensions.slug, slug),
-        eq(extensions.publisherId, publisher.id)
-      ),
-    });
-
-    if (!extension) {
-      return c.json({ error: "Extension not found" }, 404);
-    }
-
-    const version = await db.query.extensionVersions.findFirst({
-      where: and(
-        eq(extensionVersions.extensionId, extension.id),
-        eq(extensionVersions.version, versionParam)
-      ),
-    });
-
-    if (!version) {
-      return c.json({ error: "Version not found" }, 404);
-    }
-
-    if (version.status !== "draft") {
-      return c.json({ error: "Version is not in draft status" }, 400);
-    }
-
-    // For now, auto-publish (later: add review process)
-    const now = new Date();
-
-    await db
-      .update(extensionVersions)
-      .set({
-        status: "published",
-        publishedAt: now,
-      })
-      .where(eq(extensionVersions.id, version.id));
-
-    // If extension is not published yet, publish it
-    if (extension.status === "draft") {
-      await db
-        .update(extensions)
-        .set({
-          status: "published",
-          publishedAt: now,
-          updatedAt: now,
-        })
-        .where(eq(extensions.id, extension.id));
-    } else {
-      await db
-        .update(extensions)
-        .set({ updatedAt: now })
-        .where(eq(extensions.id, extension.id));
-    }
-
-    return c.json({ success: true, status: "published" });
   }
 );
 

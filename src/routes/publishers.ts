@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { db, publishers, extensions } from "../db/index.ts";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, sql, desc } from "drizzle-orm";
 import { requireAuthAsync } from "../middleware/auth.ts";
 import type { AuthVariables } from "../middleware/auth.ts";
 
@@ -110,10 +110,7 @@ app.get("/:slug", async (c) => {
 
   // Get publisher's extensions
   const publisherExtensions = await db.query.extensions.findMany({
-    where: and(
-      eq(extensions.publisherId, publisher.id),
-      eq(extensions.status, "published")
-    ),
+    where: eq(extensions.publisherId, publisher.id),
     orderBy: [desc(extensions.totalDownloads)],
     columns: {
       id: true,

@@ -9,7 +9,6 @@ import {
   jsonb,
   uniqueIndex,
   index,
-  pgEnum,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -21,21 +20,6 @@ export const authUsers = authSchema.table("users", {
   id: uuid("id").primaryKey(),
 });
 
-// Enums
-export const extensionStatusEnum = pgEnum("extension_status", [
-  "draft",
-  "pending_review",
-  "published",
-  "rejected",
-  "unlisted",
-]);
-
-export const versionStatusEnum = pgEnum("version_status", [
-  "draft",
-  "pending_review",
-  "published",
-  "rejected",
-]);
 
 // Publishers (developers who publish extensions)
 export const publishers = pgTable(
@@ -106,8 +90,7 @@ export const extensions = pgTable(
     description: text("description").notNull(), // Full markdown description
     iconUrl: text("icon_url"),
 
-    // Status
-    status: extensionStatusEnum("status").default("draft").notNull(),
+    // Flags
     verified: boolean("verified").default(false).notNull(), // Official/verified badge
 
     // Stats (denormalized for performance)
@@ -132,7 +115,6 @@ export const extensions = pgTable(
     uniqueIndex("extensions_public_key_idx").on(table.publicKey),
     index("extensions_publisher_idx").on(table.publisherId),
     index("extensions_category_idx").on(table.categoryId),
-    index("extensions_status_idx").on(table.status),
     index("extensions_downloads_idx").on(table.totalDownloads),
   ]
 );
@@ -165,9 +147,6 @@ export const extensionVersions = pgTable(
     // Permissions required by this version
     permissions: text("permissions").array(),
 
-    // Status
-    status: versionStatusEnum("status").default("draft").notNull(),
-
     // Downloads for this specific version
     downloads: integer("downloads").default(0).notNull(),
 
@@ -183,7 +162,6 @@ export const extensionVersions = pgTable(
       table.version
     ),
     index("extension_versions_extension_idx").on(table.extensionId),
-    index("extension_versions_status_idx").on(table.status),
   ]
 );
 
