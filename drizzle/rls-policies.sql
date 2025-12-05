@@ -41,12 +41,7 @@ DROP POLICY IF EXISTS "Publishers can update their own extensions" ON extensions
 
 CREATE POLICY "Extensions are readable"
   ON extensions FOR SELECT
-  USING (
-    status = 'published'
-    OR publisher_id IN (
-      SELECT id FROM publishers WHERE user_id = (select auth.uid())
-    )
-  );
+  USING (true);
 
 CREATE POLICY "Publishers can insert their own extensions"
   ON extensions FOR INSERT
@@ -80,14 +75,7 @@ DROP POLICY IF EXISTS "Publishers can update their own versions" ON extension_ve
 
 CREATE POLICY "Extension versions are readable"
   ON extension_versions FOR SELECT
-  USING (
-    status = 'published'
-    OR extension_id IN (
-      SELECT e.id FROM extensions e
-      JOIN publishers p ON e.publisher_id = p.id
-      WHERE p.user_id = (select auth.uid())
-    )
-  );
+  USING (true);
 
 CREATE POLICY "Publishers can insert versions for their extensions"
   ON extension_versions FOR INSERT
