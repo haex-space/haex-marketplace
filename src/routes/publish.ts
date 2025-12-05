@@ -492,17 +492,23 @@ app.post("/extensions/:slug/bundle", requireAuthAsync, async (c) => {
     })
     .returning();
 
-  // Auto-publish extension if still in draft
-  if (extension.status === "draft") {
-    await db
-      .update(extensions)
-      .set({
-        status: "published",
-        publishedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(extensions.id, extension.id));
+  // Update extension with manifest data (author, shortDescription)
+  const updateData: Record<string, unknown> = {
+    updatedAt: new Date(),
+  };
+
+  if (manifest.author) {
+    updateData.author = manifest.author;
   }
+
+  if (manifest.description) {
+    updateData.shortDescription = manifest.description;
+  }
+
+  await db
+    .update(extensions)
+    .set(updateData)
+    .where(eq(extensions.id, extension.id));
 
   return c.json({ version: versionRecord }, 201);
 });

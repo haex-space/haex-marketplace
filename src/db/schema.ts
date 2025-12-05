@@ -101,6 +101,7 @@ export const extensions = pgTable(
     // Metadata
     name: text("name").notNull(),
     slug: text("slug").notNull(), // URL-safe (e.g., "haex-pass")
+    author: text("author"), // Author from manifest
     shortDescription: text("short_description").notNull(), // Max ~150 chars for listings
     description: text("description").notNull(), // Full markdown description
     iconUrl: text("icon_url"),
