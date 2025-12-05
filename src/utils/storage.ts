@@ -25,6 +25,8 @@ const IMAGE_MIME_TYPES = [
   "image/gif",
   "image/webp",
   "image/svg+xml",
+  "image/x-icon",
+  "image/vnd.microsoft.icon",
 ];
 
 /**
@@ -126,7 +128,7 @@ export async function uploadExtensionIconAsync(
   const path = `${publisherSlug}/${extensionSlug}/icon.${ext}`;
 
   const { error } = await supabaseAdmin.storage
-    .from(BUCKET_NAME)
+    .from(IMAGES_BUCKET_NAME)
     .upload(path, file, {
       contentType: file.type || "image/png",
       upsert: true,
@@ -138,7 +140,7 @@ export async function uploadExtensionIconAsync(
 
   const {
     data: { publicUrl },
-  } = supabaseAdmin.storage.from(BUCKET_NAME).getPublicUrl(path);
+  } = supabaseAdmin.storage.from(IMAGES_BUCKET_NAME).getPublicUrl(path);
 
   return { url: publicUrl, error: null };
 }
@@ -157,7 +159,7 @@ export async function uploadScreenshotAsync(
   const path = `${publisherSlug}/${extensionSlug}/screenshots/${index}.${ext}`;
 
   const { error } = await supabaseAdmin.storage
-    .from(BUCKET_NAME)
+    .from(IMAGES_BUCKET_NAME)
     .upload(path, file, {
       contentType: file.type || "image/png",
       upsert: true,
@@ -169,7 +171,7 @@ export async function uploadScreenshotAsync(
 
   const {
     data: { publicUrl },
-  } = supabaseAdmin.storage.from(BUCKET_NAME).getPublicUrl(path);
+  } = supabaseAdmin.storage.from(IMAGES_BUCKET_NAME).getPublicUrl(path);
 
   return { url: publicUrl, error: null };
 }
