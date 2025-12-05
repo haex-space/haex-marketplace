@@ -81,7 +81,13 @@ app.get("/extensions", requireAuthAsync, async (c) => {
     },
   });
 
-  return c.json({ extensions: userExtensions });
+  // Add latestVersion as string for convenience
+  const transformedExtensions = userExtensions.map((ext) => ({
+    ...ext,
+    latestVersion: ext.versions[0]?.version || null,
+  }));
+
+  return c.json({ extensions: transformedExtensions });
 });
 
 /**
