@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { db, extensions, extensionVersions, publishers, categories } from "../db/index.ts";
-import { eq, desc, sql, and, or, ilike } from "drizzle-orm";
+import { eq, sql, and, or, ilike } from "drizzle-orm";
 import { optionalAuthAsync } from "../middleware/auth.ts";
 import { getDownloadUrlAsync } from "../utils/storage.ts";
 
@@ -62,63 +62,77 @@ app.get("/", zValidator("query", listQuerySchema), async (c) => {
     conditions.push(sql`${extensions.tags} && ${tagList}`);
   }
 
-  // Build order by
-  let orderBy;
-  switch (sort) {
-    case "downloads":
-      orderBy = desc(extensions.totalDownloads);
-      break;
-    case "rating":
-      orderBy = desc(extensions.averageRating);
-      break;
-    case "newest":
-      orderBy = desc(extensions.publishedAt);
-      break;
-    case "updated":
-      orderBy = desc(extensions.updatedAt);
-      break;
-    default:
-      orderBy = desc(extensions.totalDownloads);
-  }
-
-  // Query extensions with publisher info
-  const results = await db
-    .select({
-      id: extensions.id,
-      extensionId: extensions.extensionId,
-      name: extensions.name,
-      slug: extensions.slug,
-      shortDescription: extensions.shortDescription,
-      iconUrl: extensions.iconUrl,
-      verified: extensions.verified,
-      totalDownloads: extensions.totalDownloads,
-      averageRating: extensions.averageRating,
-      reviewCount: extensions.reviewCount,
-      tags: extensions.tags,
-      publishedAt: extensions.publishedAt,
+  // Query extensions with publisher info using relations
+  const results = await db.query.extensions.findMany({
+    where: conditions.length > 0 ? and(...conditions) : undefined,
+    orderBy: (ext, { desc }) => {
+      switch (sort) {
+        case "downloads":
+          return [desc(ext.totalDownloads)];
+        case "rating":
+          return [desc(ext.averageRating)];
+        case "newest":
+          return [desc(ext.publishedAt)];
+        case "updated":
+          return [desc(ext.updatedAt)];
+        default:
+          return [desc(ext.totalDownloads)];
+      }
+    },
+    limit,
+    offset,
+    columns: {
+      id: true,
+      extensionId: true,
+      name: true,
+      slug: true,
+      shortDescription: true,
+      iconUrl: true,
+      verified: true,
+      totalDownloads: true,
+      averageRating: true,
+      reviewCount: true,
+      tags: true,
+      publishedAt: true,
+    },
+    with: {
       publisher: {
-        displayName: publishers.displayName,
-        slug: publishers.slug,
-        verified: publishers.verified,
+        columns: {
+          displayName: true,
+          slug: true,
+          verified: true,
+        },
       },
       category: {
-        name: categories.name,
-        slug: categories.slug,
+        columns: {
+          name: true,
+          slug: true,
+        },
       },
-    })
-    .from(extensions)
-    .leftJoin(publishers, eq(extensions.publisherId, publishers.id))
-    .leftJoin(categories, eq(extensions.categoryId, categories.id))
-    .where(and(...conditions))
-    .orderBy(orderBy)
-    .limit(limit)
-    .offset(offset);
+      versions: {
+        orderBy: (versions, { desc }) => [desc(versions.publishedAt)],
+        columns: {
+          id: true,
+          version: true,
+          changelog: true,
+          bundleSize: true,
+          bundleHash: true,
+          permissions: true,
+          minAppVersion: true,
+          maxAppVersion: true,
+          downloads: true,
+          publishedAt: true,
+        },
+      },
+    },
+  });
 
   // Get total count
-  const [{ count }] = await db
+  const countResult = await db
     .select({ count: sql<number>`count(*)` })
     .from(extensions)
-    .where(and(...conditions));
+    .where(conditions.length > 0 ? and(...conditions) : undefined);
+  const count = countResult[0]?.count ?? 0;
 
   return c.json({
     extensions: results,
