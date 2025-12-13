@@ -44,18 +44,20 @@ app.get("/:slug/reviews", async (c) => {
     offset,
   });
 
-  const [{ count }] = await db
+  const countResult = await db
     .select({ count: sql<number>`count(*)` })
     .from(extensionReviews)
     .where(eq(extensionReviews.extensionId, extension.id));
+
+  const total = Number(countResult[0]?.count ?? 0);
 
   return c.json({
     reviews,
     pagination: {
       page,
       limit,
-      total: Number(count),
-      totalPages: Math.ceil(Number(count) / limit),
+      total,
+      totalPages: Math.ceil(total / limit),
     },
   });
 });
@@ -126,10 +128,83 @@ app.post(
 );
 
 /**
- * DELETE /extensions/:slug/reviews
- * Delete user's review
+ * GET /extensions/:slug/reviews/me
+ * Get user's own review
  */
-app.delete("/:slug/reviews", requireAuthAsync, async (c) => {
+app.get("/:slug/reviews/me", requireAuthAsync, async (c) => {
+  const slug = c.req.param("slug");
+  const user = c.get("user");
+
+  const extension = await db.query.extensions.findFirst({
+    where: eq(extensions.slug, slug),
+  });
+
+  if (!extension) {
+    return c.json({ error: "Extension not found" }, 404);
+  }
+
+  const review = await db.query.extensionReviews.findFirst({
+    where: and(
+      eq(extensionReviews.extensionId, extension.id),
+      eq(extensionReviews.userId, user.id)
+    ),
+  });
+
+  return c.json({ review: review || null });
+});
+
+/**
+ * PATCH /extensions/:slug/reviews/me
+ * Update user's own review
+ */
+app.patch(
+  "/:slug/reviews/me",
+  requireAuthAsync,
+  zValidator("json", reviewSchema.partial()),
+  async (c) => {
+    const slug = c.req.param("slug");
+    const user = c.get("user");
+    const data = c.req.valid("json");
+
+    const extension = await db.query.extensions.findFirst({
+      where: eq(extensions.slug, slug),
+    });
+
+    if (!extension) {
+      return c.json({ error: "Extension not found" }, 404);
+    }
+
+    const existingReview = await db.query.extensionReviews.findFirst({
+      where: and(
+        eq(extensionReviews.extensionId, extension.id),
+        eq(extensionReviews.userId, user.id)
+      ),
+    });
+
+    if (!existingReview) {
+      return c.json({ error: "Review not found" }, 404);
+    }
+
+    const [updated] = await db
+      .update(extensionReviews)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(extensionReviews.id, existingReview.id))
+      .returning();
+
+    await updateExtensionRatingAsync(extension.id);
+
+    return c.json({ review: updated });
+  }
+);
+
+/**
+ * DELETE /extensions/:slug/reviews/me
+ * Delete user's own review
+ */
+app.delete("/:slug/reviews/me", requireAuthAsync, async (c) => {
   const slug = c.req.param("slug");
   const user = c.get("user");
 
