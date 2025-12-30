@@ -10,7 +10,7 @@ import {
   categories,
 } from "../db/index.ts";
 import { eq, and, desc } from "drizzle-orm";
-import { requireAuthAsync } from "../middleware/auth.ts";
+import { requireAuthAsync, requireApiKeyOrAuthAsync } from "../middleware/auth.ts";
 import type { AuthVariables } from "../middleware/auth.ts";
 import {
   uploadExtensionBundleAsync,
@@ -386,17 +386,23 @@ app.delete("/extensions/:slug/screenshots/:id", requireAuthAsync, async (c) => {
 /**
  * POST /publish/extensions/:slug/bundle
  * Simple bundle upload (extracts version from form data)
+ * Supports both Supabase auth and API key authentication
  */
-app.post("/extensions/:slug/bundle", requireAuthAsync, async (c) => {
+app.post("/extensions/:slug/bundle", requireApiKeyOrAuthAsync, async (c) => {
   const user = c.get("user");
   const slug = c.req.param("slug");
 
-  const publisher = await db.query.publishers.findFirst({
-    where: eq(publishers.userId, user.id),
-  });
-
+  // Check if authenticated via API key (publisher already set)
+  let publisher = c.get("publisher");
   if (!publisher) {
-    return c.json({ error: "No publisher profile found" }, 404);
+    // Fall back to looking up publisher by user
+    const pub = await db.query.publishers.findFirst({
+      where: eq(publishers.userId, user.id),
+    });
+    if (!pub) {
+      return c.json({ error: "No publisher profile found" }, 404);
+    }
+    publisher = { id: pub.id, userId: pub.userId, slug: pub.slug };
   }
 
   const extension = await db.query.extensions.findFirst({
@@ -514,20 +520,26 @@ app.post("/extensions/:slug/bundle", requireAuthAsync, async (c) => {
 /**
  * POST /publish/extensions/:slug/versions
  * Upload a new version
+ * Supports both Supabase auth and API key authentication
  */
 app.post(
   "/extensions/:slug/versions",
-  requireAuthAsync,
+  requireApiKeyOrAuthAsync,
   async (c) => {
     const user = c.get("user");
     const slug = c.req.param("slug");
 
-    const publisher = await db.query.publishers.findFirst({
-      where: eq(publishers.userId, user.id),
-    });
-
+    // Check if authenticated via API key (publisher already set)
+    let publisher = c.get("publisher");
     if (!publisher) {
-      return c.json({ error: "No publisher profile found" }, 404);
+      // Fall back to looking up publisher by user
+      const pub = await db.query.publishers.findFirst({
+        where: eq(publishers.userId, user.id),
+      });
+      if (!pub) {
+        return c.json({ error: "No publisher profile found" }, 404);
+      }
+      publisher = { id: pub.id, userId: pub.userId, slug: pub.slug };
     }
 
     const extension = await db.query.extensions.findFirst({

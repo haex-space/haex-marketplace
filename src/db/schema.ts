@@ -214,6 +214,29 @@ export const extensionReviews = pgTable(
   ]
 );
 
+// Publisher API keys (for CLI/CI authentication)
+export const publisherApiKeys = pgTable(
+  "publisher_api_keys",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    publisherId: uuid("publisher_id")
+      .notNull()
+      .references(() => publishers.id, { onDelete: "cascade" }),
+    name: text("name").notNull(), // e.g., "GitHub Actions", "Local Dev"
+    keyHash: text("key_hash").notNull(), // SHA-256 hash of the API key
+    keyPrefix: text("key_prefix").notNull(), // First 8 chars for display (e.g., "hxmp_abc1")
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(), // Max 1 year from creation
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("publisher_api_keys_publisher_idx").on(table.publisherId),
+    index("publisher_api_keys_hash_idx").on(table.keyHash),
+  ]
+);
+
 // Extension downloads (for analytics)
 export const extensionDownloads = pgTable(
   "extension_downloads",
@@ -265,9 +288,20 @@ export type NewExtensionReview = typeof extensionReviews.$inferInsert;
 export type ExtensionDownload = typeof extensionDownloads.$inferSelect;
 export type NewExtensionDownload = typeof extensionDownloads.$inferInsert;
 
+export type PublisherApiKey = typeof publisherApiKeys.$inferSelect;
+export type NewPublisherApiKey = typeof publisherApiKeys.$inferInsert;
+
 // Relations
 export const publishersRelations = relations(publishers, ({ many }) => ({
   extensions: many(extensions),
+  apiKeys: many(publisherApiKeys),
+}));
+
+export const publisherApiKeysRelations = relations(publisherApiKeys, ({ one }) => ({
+  publisher: one(publishers, {
+    fields: [publisherApiKeys.publisherId],
+    references: [publishers.id],
+  }),
 }));
 
 export const categoriesRelations = relations(categories, ({ many }) => ({
