@@ -20,6 +20,48 @@ import {
 } from "../utils/storage.ts";
 import * as semver from "semver";
 import * as crypto from "crypto";
+import { unzipSync } from "fflate";
+
+/**
+ * Extract icon from extension bundle (.xt file is a ZIP)
+ * Returns the icon data and filename, or null if not found
+ */
+function extractIconFromBundle(
+  bundleArrayBuffer: ArrayBuffer,
+  manifest: Record<string, unknown>
+): { iconData: Uint8Array; filename: string; mimeType: string } | null {
+  const iconPath = manifest.icon as string | undefined;
+  if (!iconPath) {
+    return null;
+  }
+
+  try {
+    const files = unzipSync(new Uint8Array(bundleArrayBuffer));
+
+    // Find the icon file
+    const iconData = files[iconPath];
+    if (!iconData) {
+      console.log(`Icon not found in bundle at path: ${iconPath}`);
+      return null;
+    }
+
+    const filename = iconPath.split("/").pop() || "icon.png";
+
+    // Determine MIME type from extension
+    const ext = filename.split(".").pop()?.toLowerCase();
+    let mimeType = "image/png";
+    if (ext === "jpg" || ext === "jpeg") mimeType = "image/jpeg";
+    else if (ext === "gif") mimeType = "image/gif";
+    else if (ext === "webp") mimeType = "image/webp";
+    else if (ext === "svg") mimeType = "image/svg+xml";
+    else if (ext === "ico") mimeType = "image/x-icon";
+
+    return { iconData, filename, mimeType };
+  } catch (error) {
+    console.error("Failed to extract icon from bundle:", error);
+    return null;
+  }
+}
 
 const app = new Hono<{ Variables: AuthVariables }>();
 
@@ -507,6 +549,25 @@ app.post("/extensions/:slug/bundle", requireApiKeyOrAuthAsync, async (c) => {
 
   if (manifest.description) {
     updateData.shortDescription = manifest.description;
+  }
+
+  // Extract and upload icon from bundle if present in manifest
+  const iconResult = extractIconFromBundle(arrayBuffer, manifest);
+  if (iconResult) {
+    const iconBlob = new Blob([iconResult.iconData], { type: iconResult.mimeType });
+    const { url: iconUrl, error: iconError } = await uploadExtensionIconAsync(
+      publisher.slug,
+      extension.slug,
+      iconBlob,
+      iconResult.filename
+    );
+
+    if (iconError) {
+      console.error("Failed to upload icon:", iconError.message);
+    } else {
+      updateData.iconUrl = iconUrl;
+      console.log(`Icon extracted and uploaded: ${iconUrl}`);
+    }
   }
 
   await db
