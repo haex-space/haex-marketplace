@@ -1,0 +1,30 @@
+# Dependencies - installed fresh in container
+node_modules/
+
+# Build outputs
+dist/
+.output/
+
+# Development files
+.git/
+.github/
+.vscode/
+
+# Environment files (secrets)
+.env
+.env.*
+!.env.example
+
+# Test files
+*.test.ts
+*.spec.ts
+__tests__/
+coverage/
+
+# Documentation
+*.md
+!README.md
+
+# Misc
+.DS_Store
+*.log
