@@ -13,7 +13,10 @@
     "db:push": "drizzle-kit push && bun run db:rls",
     "db:rls": "bun run scripts/apply-rls.ts",
     "db:seed": "bun run scripts/seed-categories.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "release:patch": "node scripts/release.js patch",
+    "release:minor": "node scripts/release.js minor",
+    "release:major": "node scripts/release.js major"
   },
   "devDependencies": {
     "@types/bun": "latest",
