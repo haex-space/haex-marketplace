@@ -173,3 +173,34 @@ DROP POLICY IF EXISTS "Anyone can record downloads" ON extension_downloads;
 CREATE POLICY "Anyone can record downloads"
   ON extension_downloads FOR INSERT
   WITH CHECK (true);
+
+-- Publisher API Keys (sensitive - only owner can access)
+ALTER TABLE publisher_api_keys ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Publishers can read their own API keys" ON publisher_api_keys;
+DROP POLICY IF EXISTS "Publishers can create their own API keys" ON publisher_api_keys;
+DROP POLICY IF EXISTS "Publishers can delete their own API keys" ON publisher_api_keys;
+
+CREATE POLICY "Publishers can read their own API keys"
+  ON publisher_api_keys FOR SELECT
+  USING (
+    publisher_id IN (
+      SELECT id FROM publishers WHERE user_id = (select auth.uid())
+    )
+  );
+
+CREATE POLICY "Publishers can create their own API keys"
+  ON publisher_api_keys FOR INSERT
+  WITH CHECK (
+    publisher_id IN (
+      SELECT id FROM publishers WHERE user_id = (select auth.uid())
+    )
+  );
+
+CREATE POLICY "Publishers can delete their own API keys"
+  ON publisher_api_keys FOR DELETE
+  USING (
+    publisher_id IN (
+      SELECT id FROM publishers WHERE user_id = (select auth.uid())
+    )
+  );
