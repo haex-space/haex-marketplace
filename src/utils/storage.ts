@@ -225,18 +225,75 @@ export async function getDownloadUrlAsync(
 }
 
 /**
- * Delete extension files from storage
+ * List all files under a prefix in a bucket, then remove them.
+ * Supabase storage.remove() requires individual file paths, not folder paths.
+ */
+async function removeFolderAsync(
+  bucket: string,
+  folderPath: string
+): Promise<{ error: Error | null }> {
+  const { data: files, error: listError } = await supabaseAdmin.storage
+    .from(bucket)
+    .list(folderPath, { limit: 1000 });
+
+  if (listError) {
+    return { error: new Error(listError.message) };
+  }
+
+  if (!files || files.length === 0) {
+    return { error: null };
+  }
+
+  // Recursively list subfolders and collect all file paths
+  const filePaths: string[] = [];
+  for (const file of files) {
+    if (file.id) {
+      // It's a file
+      filePaths.push(`${folderPath}/${file.name}`);
+    } else {
+      // It's a subfolder - recurse
+      const subResult = await removeFolderAsync(bucket, `${folderPath}/${file.name}`);
+      if (subResult.error) {
+        console.error(`Failed to clean subfolder ${file.name}:`, subResult.error.message);
+      }
+    }
+  }
+
+  if (filePaths.length > 0) {
+    const { error: removeError } = await supabaseAdmin.storage
+      .from(bucket)
+      .remove(filePaths);
+
+    if (removeError) {
+      return { error: new Error(removeError.message) };
+    }
+  }
+
+  return { error: null };
+}
+
+/**
+ * Delete all extension files from both storage buckets (bundles + images)
  */
 export async function deleteExtensionFilesAsync(
   publisherSlug: string,
   extensionSlug: string
 ): Promise<{ error: Error | null }> {
-  const { error } = await supabaseAdmin.storage
-    .from(BUCKET_NAME)
-    .remove([`${publisherSlug}/${extensionSlug}`]);
+  const folder = `${publisherSlug}/${extensionSlug}`;
+  const errors: string[] = [];
 
-  if (error) {
-    return { error: new Error(error.message) };
+  const bundleResult = await removeFolderAsync(BUCKET_NAME, folder);
+  if (bundleResult.error) {
+    errors.push(`bundles: ${bundleResult.error.message}`);
+  }
+
+  const imagesResult = await removeFolderAsync(IMAGES_BUCKET_NAME, folder);
+  if (imagesResult.error) {
+    errors.push(`images: ${imagesResult.error.message}`);
+  }
+
+  if (errors.length > 0) {
+    return { error: new Error(errors.join("; ")) };
   }
 
   return { error: null };

@@ -17,6 +17,7 @@ import {
   uploadExtensionIconAsync,
   uploadScreenshotAsync,
   uploadMarketplaceImageAsync,
+  deleteExtensionFilesAsync,
 } from "../utils/storage.ts";
 import * as semver from "semver";
 import * as crypto from "crypto";
@@ -259,6 +260,45 @@ app.patch(
     return c.json({ extension: updated });
   }
 );
+
+/**
+ * DELETE /publish/extensions/:slug
+ * Delete an extension and all associated data (versions, screenshots, reviews, downloads)
+ */
+app.delete("/extensions/:slug", requireAuthAsync, async (c) => {
+  const user = c.get("user");
+  const slug = c.req.param("slug");
+
+  const publisher = await db.query.publishers.findFirst({
+    where: eq(publishers.userId, user.id),
+  });
+
+  if (!publisher) {
+    return c.json({ error: "No publisher profile found" }, 404);
+  }
+
+  const extension = await db.query.extensions.findFirst({
+    where: and(
+      eq(extensions.slug, slug),
+      eq(extensions.publisherId, publisher.id)
+    ),
+  });
+
+  if (!extension) {
+    return c.json({ error: "Extension not found" }, 404);
+  }
+
+  // Delete storage files (best-effort - DB deletion proceeds even if this fails)
+  const storageResult = await deleteExtensionFilesAsync(publisher.slug, extension.slug);
+  if (storageResult.error) {
+    console.error(`Storage cleanup failed for ${slug}:`, storageResult.error.message);
+  }
+
+  // Delete from DB - CASCADE handles versions, screenshots, reviews, downloads
+  await db.delete(extensions).where(eq(extensions.id, extension.id));
+
+  return c.json({ success: true });
+});
 
 /**
  * POST /publish/extensions/:slug/icon
