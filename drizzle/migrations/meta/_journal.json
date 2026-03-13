@@ -29,6 +29,13 @@
       "when": 1767108081179,
       "tag": "0003_simple_blockbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1773406879178,
+      "tag": "0004_workable_mole_man",
+      "breakpoints": true
     }
   ]
 }

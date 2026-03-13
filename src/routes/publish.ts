@@ -162,15 +162,6 @@ app.post(
       return c.json({ error: "Extension slug is already taken" }, 409);
     }
 
-    // Check if public key is already used
-    const publicKeyTaken = await db.query.extensions.findFirst({
-      where: eq(extensions.publicKey, data.publicKey),
-    });
-
-    if (publicKeyTaken) {
-      return c.json({ error: "Public key is already registered" }, 409);
-    }
-
     // Get category ID if provided
     let categoryId: string | null = null;
     if (data.categorySlug) {
@@ -533,13 +524,6 @@ app.post("/extensions/:slug/bundle", requireApiKeyOrAuthAsync, async (c) => {
     });
     if (slugTaken) {
       return c.json({ error: "Extension slug is already taken by another publisher" }, 409);
-    }
-
-    const publicKeyTaken = await db.query.extensions.findFirst({
-      where: eq(extensions.publicKey, publicKey),
-    });
-    if (publicKeyTaken) {
-      return c.json({ error: "Public key is already registered" }, 409);
     }
 
     const extensionId = `${publisher.slug}/${slug}`;

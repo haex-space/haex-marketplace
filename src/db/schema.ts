@@ -112,7 +112,7 @@ export const extensions = pgTable(
   },
   (table) => [
     uniqueIndex("extensions_slug_idx").on(table.slug),
-    uniqueIndex("extensions_public_key_idx").on(table.publicKey),
+    index("extensions_public_key_idx").on(table.publicKey),
     index("extensions_publisher_idx").on(table.publisherId),
     index("extensions_category_idx").on(table.categoryId),
     index("extensions_downloads_idx").on(table.totalDownloads),
