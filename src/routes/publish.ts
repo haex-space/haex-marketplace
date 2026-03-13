@@ -94,7 +94,7 @@ const publishVersionSchema = z.object({
   minAppVersion: z.string().optional(),
   maxAppVersion: z.string().optional(),
   permissions: z.array(z.string()).optional(),
-  manifest: z.record(z.unknown()),
+  manifest: z.record(z.string(), z.unknown()),
 });
 
 /**
@@ -487,17 +487,6 @@ app.post("/extensions/:slug/bundle", requireApiKeyOrAuthAsync, async (c) => {
     publisher = { id: pub.id, userId: pub.userId, slug: pub.slug };
   }
 
-  const extension = await db.query.extensions.findFirst({
-    where: and(
-      eq(extensions.slug, slug),
-      eq(extensions.publisherId, publisher.id)
-    ),
-  });
-
-  if (!extension) {
-    return c.json({ error: "Extension not found" }, 404);
-  }
-
   const formData = await c.req.formData();
   const bundle = formData.get("bundle") as File | null;
   const version = formData.get("version") as string | null;
@@ -518,6 +507,65 @@ app.post("/extensions/:slug/bundle", requireApiKeyOrAuthAsync, async (c) => {
     } catch {
       return c.json({ error: "Invalid manifest JSON" }, 400);
     }
+  }
+
+  // Find or auto-create the extension
+  let extension = await db.query.extensions.findFirst({
+    where: and(
+      eq(extensions.slug, slug),
+      eq(extensions.publisherId, publisher.id)
+    ),
+  });
+
+  if (!extension) {
+    // Auto-create extension from manifest data
+    const publicKey = manifest.publicKey as string | undefined;
+    if (!publicKey) {
+      return c.json(
+        { error: "Extension does not exist yet. Manifest must include publicKey for auto-registration." },
+        400
+      );
+    }
+
+    // Check if slug or public key is already taken
+    const slugTaken = await db.query.extensions.findFirst({
+      where: eq(extensions.slug, slug),
+    });
+    if (slugTaken) {
+      return c.json({ error: "Extension slug is already taken by another publisher" }, 409);
+    }
+
+    const publicKeyTaken = await db.query.extensions.findFirst({
+      where: eq(extensions.publicKey, publicKey),
+    });
+    if (publicKeyTaken) {
+      return c.json({ error: "Public key is already registered" }, 409);
+    }
+
+    const extensionId = `${publisher.slug}/${slug}`;
+    const name = (manifest.name as string) || slug;
+    const shortDescription = (manifest.description as string) || name;
+
+    [extension] = await db
+      .insert(extensions)
+      .values({
+        publisherId: publisher.id,
+        extensionId,
+        publicKey,
+        name,
+        slug,
+        shortDescription,
+        description: "",
+        author: (manifest.author as string) || undefined,
+        tags: [],
+      })
+      .returning();
+
+    console.log(`Auto-created extension ${extensionId} for publisher ${publisher.slug}`);
+  }
+
+  if (!extension) {
+    return c.json({ error: "Failed to create extension" }, 500);
   }
 
   // Check if version already exists
