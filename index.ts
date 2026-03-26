@@ -11,8 +11,8 @@ import { initStorageAsync } from "./src/utils/storage.ts";
 
 const app = new Hono();
 
-// Initialize storage bucket on startup
-initStorageAsync().catch(console.error);
+// Initialize storage buckets before accepting requests (retries if Supabase isn't ready)
+await initStorageAsync();
 
 // Middleware
 app.use("*", logger());

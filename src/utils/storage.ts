@@ -30,10 +30,40 @@ const IMAGE_MIME_TYPES = [
 ];
 
 /**
- * Initialize storage buckets (creates if not exists, updates if exists)
+ * Initialize storage buckets (creates if not exists, updates if exists).
+ * Retries on failure to handle cases where Supabase isn't ready yet at startup.
  */
-export async function initStorageAsync(): Promise<void> {
-  const { data: buckets } = await supabaseAdmin.storage.listBuckets();
+export async function initStorageAsync(
+  maxRetries = 10,
+  retryDelayMs = 3000,
+): Promise<void> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await initBucketsAsync();
+      return;
+    } catch (error) {
+      console.error(
+        `Storage init attempt ${attempt}/${maxRetries} failed: ${error}`,
+      );
+      if (attempt < maxRetries) {
+        console.log(`Retrying in ${retryDelayMs / 1000}s...`);
+        await new Promise((r) => setTimeout(r, retryDelayMs));
+      } else {
+        throw new Error(
+          `Failed to initialize storage after ${maxRetries} attempts`,
+        );
+      }
+    }
+  }
+}
+
+async function initBucketsAsync(): Promise<void> {
+  const { data: buckets, error: listError } =
+    await supabaseAdmin.storage.listBuckets();
+
+  if (listError) {
+    throw new Error(`Failed to list buckets: ${listError.message}`);
+  }
 
   // Extensions bucket
   const extensionBucketExists = buckets?.some(b => b.name === BUCKET_NAME);
